@@ -1,7 +1,12 @@
+from flask import Flask, request, jsonify
 import torch
 from PIL import Image
 from torchvision import transforms
 from diff_pipe import StableDiffusionDiffImg2ImgPipeline
+from io import BytesIO
+import base64
+
+app = Flask(__name__)
 
 device = "cuda"
 
@@ -27,18 +32,47 @@ def preprocess_map(map):
     map = map.to(device)
     return map
 
+@app.route('/inpaint', methods=['POST'])
+def inpaint():
+    # Get data from the request
+    data = request.json
 
-with Image.open("assets/input.jpg") as imageFile:
-    image = preprocess_image(imageFile)
+    # Decode image from base64
+    image_data = base64.b64decode(data['image'])
+    map_data = base64.b64decode(data['map'])
 
-with Image.open("assets/map.jpg") as mapFile:
-    map = preprocess_map(mapFile)
+    # Open image and map using PIL
+    image = Image.open(BytesIO(image_data))
+    map = Image.open(BytesIO(map_data))
 
-edited_image = \
-pipe(prompt=["painting of a mountain landscape with a meadow and a forest, meadow background"], image=image,
-     guidance_scale=7,
-     num_images_per_prompt=1,
-     negative_prompt=["blurry, shadow polaroid photo, scary angry pose"], map=map, num_inference_steps=100).images[0]
-edited_image.save("output.png")
+    # Preprocess the images
+    image = preprocess_image(image)
+    map = preprocess_map(map)
 
-print("Done!")
+    # Get additional parameters
+    prompt = data.get('prompt', ["inpaint in the same style as the rest of the image"])
+    guidance_scale = data.get('guidance_scale', 7)
+    num_images_per_prompt = data.get('num_images_per_prompt', 1)
+    negative_prompt = data.get('negative_prompt', ["blurry, different, seams"])
+    num_inference_steps = data.get('num_inference_steps', 50)
+
+    # Run the pipeline
+    edited_image = pipe(
+        prompt=prompt,
+        image=image,
+        guidance_scale=guidance_scale,
+        num_images_per_prompt=num_images_per_prompt,
+        negative_prompt=negative_prompt,
+        map=map,
+        num_inference_steps=num_inference_steps
+    ).images[0]
+
+    # Convert the edited image to base64
+    buffered = BytesIO()
+    edited_image.save(buffered, format="PNG")
+    edited_image_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+    return jsonify({"image": edited_image_str})
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
