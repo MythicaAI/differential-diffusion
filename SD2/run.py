@@ -51,11 +51,11 @@ def inpaint():
 
     # Get additional parameters
     prompt = data.get('prompt', ["inpaint in the same style as the rest of the image"])
-    guidance_scale = data.get('guidance_scale', 7)
-    num_images_per_prompt = data.get('num_images_per_prompt', 1)
     negative_prompt = data.get('negative_prompt', ["blurry, different, seams"])
+    guidance_scale = data.get('guidance_scale', 7)
     num_inference_steps = data.get('num_inference_steps', 50)
-
+    num_images_per_prompt = 1 #data.get('num_images_per_prompt', 1)
+    
     # Run the pipeline
     edited_image = pipe(
         prompt=prompt,
