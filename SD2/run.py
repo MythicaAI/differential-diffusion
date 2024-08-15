@@ -79,5 +79,9 @@ def inpaint():
         return jsonify({"error": str(e)}), 500
 
 
+    finally:
+        # Clear CUDA memory
+        torch.cuda.empty_cache()
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
