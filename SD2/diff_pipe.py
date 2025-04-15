@@ -31,9 +31,9 @@ from diffusers.utils import (
     is_accelerate_available,
     is_accelerate_version,
     logging,
-    randn_tensor,
     replace_example_docstring,
 )
+from diffusers.utils.torch_utils import randn_tensor
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 from diffusers.pipelines.stable_diffusion.safety_checker import StableDiffusionSafetyChecker
@@ -687,7 +687,7 @@ class StableDiffusionDiffImg2ImgPipeline(DiffusionPipeline):
         # 8. Denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
 
-        # prepartions
+        # diff diff prepartions
         original_with_noise = self.prepare_latents(
             image, timesteps, batch_size, num_images_per_prompt, prompt_embeds.dtype, device, generator
         )
