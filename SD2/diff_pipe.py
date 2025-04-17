@@ -682,15 +682,20 @@ class StableDiffusionDiffImg2ImgPipeline(DiffusionPipeline):
 
         # 7. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
-        map = torchvision.transforms.Resize(tuple(s // self.vae_scale_factor for s in image.shape[2:]),antialias=None)(map)
-
+        
         # 8. Denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
 
         # diff diff prepartions
+        from torchvision.transforms.functional import InterpolationMode
+        map = torchvision.transforms.Resize(
+            tuple(s // self.vae_scale_factor for s in image.shape[2:]),
+            interpolation=InterpolationMode.NEAREST,
+            antialias=False)(map)
         original_with_noise = self.prepare_latents(
             image, timesteps, batch_size, num_images_per_prompt, prompt_embeds.dtype, device, generator
         )
+
         thresholds = torch.arange(len(timesteps), dtype=map.dtype) / len(timesteps)
         thresholds = thresholds.unsqueeze(1).unsqueeze(1).to(device)
         masks = map > thresholds

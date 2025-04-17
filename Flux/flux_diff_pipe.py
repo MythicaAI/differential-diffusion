@@ -17,6 +17,9 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 import numpy as np
 import torch
+import torchvision
+from torchvision.transforms.functional import InterpolationMode
+
 from transformers import (
     CLIPImageProcessor,
     CLIPTextModel,
@@ -915,6 +918,32 @@ class FluxDiffImg2ImgPipeline(DiffusionPipeline, FluxLoraLoaderMixin, FromSingle
             latents,
         )
 
+        # diff diff prepartions
+        map = torchvision.transforms.Resize(
+            tuple(s // self.vae_scale_factor for s in image.shape[2:]),
+            interpolation=InterpolationMode.NEAREST,
+            antialias=None
+        )(map)
+        # Ensure strict binary mask after resize to avoid edge bleed
+        thresholds = torch.arange(len(latent_timestep), dtype=map.dtype) / len(latent_timestep)
+        thresholds = thresholds.unsqueeze(1).unsqueeze(1).to(device)
+        masks = map > thresholds  # invert logic: white (1.0) means mask is off
+
+        # diff diff
+        for i, t in enumerate(latent_timestep):
+            if i == 0:
+                temp_latents = latents[:1]
+            else:
+                mask = masks[i].unsqueeze(0)
+                # cast mask to the same type as latents etc
+                mask = mask.to(temp_latents.dtype)
+                mask = mask.unsqueeze(1)  # fit shape
+                temp_latents = latents[i] * mask + temp_latents * (1 - mask)
+        # end diff diff
+        latents = temp_latents
+        # end diff diff preparations
+
+        
         num_warmup_steps = max(len(timesteps) - num_inference_steps * self.scheduler.order, 0)
         self._num_timesteps = len(timesteps)
 
@@ -1016,6 +1045,20 @@ class FluxDiffImg2ImgPipeline(DiffusionPipeline, FluxLoraLoaderMixin, FromSingle
 
                 if XLA_AVAILABLE:
                     xm.mark_step()
+
+
+        # diff diff
+        for i, t in enumerate(latent_timestep):
+            if i == 0:
+                temp_latents = latents[:1]
+            else:
+                mask = masks[i].unsqueeze(0)
+                # cast mask to the same type as latents etc
+                mask = mask.to(temp_latents.dtype)
+                mask = mask.unsqueeze(1)  # fit shape
+                temp_latents = latents[i] * mask + temp_latents * (1 - mask)
+        # end diff diff
+        latents = temp_latents
 
         if output_type == "latent":
             image = latents
